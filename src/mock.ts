@@ -16,31 +16,58 @@ export const nodes: INode[] = []
 // Generating Mock data
 
 // Nodes
-for(let i = 0; i < 100; i++) {
+for(let i = 0; i < 1000; i++) {
   nodes.push({
     id: `${i+1}`,
-    title: mockTitles[Math.floor(Math.random() * mockTitles.length)],
+    width: 340,
+    height: 300,
+    title: `${mockTitles[Math.floor(Math.random() * mockTitles.length)]} - ${i+1}`,
     content: mockContents[Math.floor(Math.random() * mockContents.length)],
-    children: []
+    children: [],
+    parents: []
   })
 }
 
-// Node Links
-for(let i = 0; i < nodes.length; i++) {
-  const node = nodes[i]
-  // Children
-  const nOfLinks = Math.floor(Math.random() * 4)
-  
-  // atmost 3 links for each node
-  const childIds = new Set<number>()
-  for(let r = 0; r < nOfLinks; r++) {
-    const randomIdx = Math.floor(Math.random() * nodes.length - 1)
-    const linkIdx = randomIdx === i ? randomIdx + 1 : randomIdx
-    childIds.add(linkIdx)
+export const adjustNodeLinks = (nodes: INode[]) => {
+  // Cleaning Previous Links
+  for(const node of nodes) {
+    node.parents = []
+    node.children = []
   }
 
-  for(const childId of childIds) {
-    const linkNode = nodes[childId]
-    node.children.push(linkNode)
+  // Node Links
+  for(let i = 0; i < nodes.length; i++) {
+    const node = nodes[i]
+    // Children
+    const nOfLinks = Math.floor(Math.random() * 4)
+    
+    // atmost 3 links for each node
+    const childIds = new Set<number>()
+    for(let r = 0; r < nOfLinks; r++) {
+      let randomIdx = Math.floor(Math.random() * nodes.length)
+      while(randomIdx === i) {
+        randomIdx = Math.floor(Math.random() * nodes.length)
+      }
+      childIds.add(randomIdx)
+    }
+
+    for(const childId of childIds) {
+      const linkNode = nodes[childId]
+      node.children.push(linkNode)
+    }
+  }
+
+  // Adding Parents
+  for(const node of nodes) {
+    for(const child of node.children) {
+      const childNode = nodes.find((_node) => _node.id === child.id)
+      if(!childNode) continue;
+      childNode.parents.push({
+        id: node.id,
+        title: node.title
+      })
+    }
   }
 }
+
+adjustNodeLinks(nodes)

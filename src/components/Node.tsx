@@ -5,21 +5,22 @@ import {
   useState
 } from 'react';
 import {
-  Layer,
+  Group,
   Rect,
   Text
 } from 'react-konva';
 import Konva from 'konva'
 import { useGraphContext } from '../contexts/GraphContext';
+import { Node as DagreNode } from 'dagre';
+import { INode } from '../types/INode';
+import { NODE_PADDING, NODE_WIDTH } from '../constants';
 
-const NODE_WIDTH = 340;
-const NODE_PADDING = 20;
-
-export const Node = forwardRef(({ id }: {
-  id: string
-}, nodeRef: React.ForwardedRef<Konva.Layer>) => {
+export const Node = forwardRef(({ id, setHeightUpdated }: {
+  id: string,
+  setHeightUpdated: (dt: Date) => void
+}, nodeRef: React.ForwardedRef<Konva.Group>) => {
   const { graph } = useGraphContext()
-  const node = graph.node(id)
+  const node: DagreNode<INode> | undefined = graph.node(id)
 
   const refs = useRef<
     Record<string, Konva.Text | null>
@@ -48,6 +49,9 @@ export const Node = forwardRef(({ id }: {
       _heights[k] = refs.current[k]!.height()
     }
     setHeights(_heights)
+
+    // Trigger notebook layout
+    // setHeightUpdated(new Date())
   }, [])
 
   const nodeHeight = Object.values(heights).reduce(
@@ -55,9 +59,9 @@ export const Node = forwardRef(({ id }: {
   )
 
   return (
-    <Layer
-      x={node.x}
-      y={node.y}
+    <Group
+      x={node?.x || 0}
+      y={node?.y || 0}
       ref={nodeRef}
     >
       {/* Node background */}
@@ -74,7 +78,7 @@ export const Node = forwardRef(({ id }: {
         x={NODE_PADDING / 2}
         y={10}
         fill='#fff'
-        text={String(node.title)}
+        text={String(node?.title)}
         fontSize={18}
       />
       {/* Content */}
@@ -85,9 +89,9 @@ export const Node = forwardRef(({ id }: {
         y={(heights.title || 0) + 20}
         width={NODE_WIDTH - 20}
         fill='#fff'
-        text={String(node.content)}
+        text={String(node?.content)}
         fontSize={18}
       />
-    </Layer>
+    </Group>
   )
 })

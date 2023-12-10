@@ -1,4 +1,5 @@
 import { Notebook } from './components/Notebook';
+import "./App.css";
 
 function App() {
   return (
