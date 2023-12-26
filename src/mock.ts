@@ -16,7 +16,7 @@ export const nodes: INode[] = []
 // Generating Mock data
 
 // Nodes
-for(let i = 0; i < 1000; i++) {
+for(let i = 0; i < 1100; i++) {
   nodes.push({
     id: `${i+1}`,
     width: 340,

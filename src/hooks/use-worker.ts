@@ -8,14 +8,22 @@ export const useWorker = <EventType>(
   // new Worker(new URL(`../workers/layoutWorker.ts?worker&inline`, import.meta.url))
 
   useEffect(() => {
-    worker.current.addEventListener("message", listener)
+    const _listener = (ev: MessageEvent<EventType>) => {
+      listener.bind(worker.current, ev)()
+      // Destroying previous worker
+      const _worker = worker.current
+      worker.current = new LayoutWorker()
+      _worker.terminate()
+      worker.current.addEventListener("message", _listener)
+    }
+    worker.current.addEventListener("message", _listener)
 
     return () => {
-      worker.current.removeEventListener("message", listener)
+      worker.current.removeEventListener("message", _listener)
     }
   }, [listener])
 
   return {
-    worker: worker.current
+    worker
   }
 }

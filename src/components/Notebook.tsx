@@ -6,7 +6,8 @@ import { useGraphContext } from "../contexts/GraphContext"
 import dagre from "dagre"
 import Konva from "konva"
 import { useWorker } from "../hooks/use-worker"
-import { INode } from "../types/INode"
+import { INode, IPartialNode } from "../types/INode"
+import { loadPartialGraph, runPartialGraph } from "../utils/graph"
 
 export const Notebook = () => {
   const { graph } = useGraphContext()
@@ -19,28 +20,16 @@ export const Notebook = () => {
   const _heightUpdated = useDeferredValue(heightUpdated)
 
   const workerOnMessage = useCallback((e: MessageEvent<{
-    nodes: dagre.Node<INode>[],
+    nodes: IPartialNode[],
     edges: dagre.Edge[]
   }>) => {
-    for (const node of e.data.nodes) {
-      graph.setNode(node.id, node)
-    }
-
-    // removing all edges
-    for (const edge of graph.edges()) {
-      graph.removeEdge(edge.v, edge.w)
-    }
-
-    // adding worker edges
-    for (const edge of e.data.edges) {
-      graph.setEdge(edge.v, edge.w)
-    }
+    loadPartialGraph(graph, e.data)
 
     setGraphReload(new Date())
   }, [graph])
 
   const { worker } = useWorker<{
-    nodes: dagre.Node<INode>[],
+    nodes: IPartialNode[],
     edges: dagre.Edge[]
   }>(workerOnMessage)
 
@@ -114,10 +103,7 @@ export const Notebook = () => {
     }
 
     // Execute Layout for DAG coords
-    worker.postMessage({
-      nodes: graph.nodes().map((v) => graph.node(v)),
-      edges: graph.edges()
-    })
+    runPartialGraph(graph, worker.current)
     // dagre.layout(graph)
   }, [graphReload])
 
@@ -130,10 +116,7 @@ export const Notebook = () => {
     })
 
     // Execute Layout for DAG coords
-    worker.postMessage({
-      nodes: graph.nodes().map((v) => graph.node(v)),
-      edges: graph.edges()
-    })
+    runPartialGraph(graph, worker.current)
   }, [_heightUpdated])
 
   const regenerateGraph = useCallback(() => {
@@ -142,10 +125,7 @@ export const Notebook = () => {
   }, [setGraphReload])
 
   const runDagre = useCallback(() => {
-    worker.postMessage({
-      nodes: graph.nodes().map((v) => graph.node(v)),
-      edges: graph.edges()
-    })
+    runPartialGraph(graph, worker.current)
   }, [setGraphReload])
 
   return (

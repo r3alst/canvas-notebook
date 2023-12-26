@@ -13,3 +13,5 @@ export interface INode {
     title: string
   }[]
 }
+
+export type IPartialNode = Pick<INode, 'id' | 'width' | 'height'>
