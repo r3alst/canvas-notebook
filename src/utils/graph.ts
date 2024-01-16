@@ -1,31 +1,37 @@
-import { graphlib } from "dagre"
-import { INode, IPartialNode } from "../types/INode"
+import { graphlib } from "dagre";
+import { INode, IPartialNode } from "../types/INode";
 
-export const runPartialGraph = (graph: graphlib.Graph<INode>, worker: Worker) => {
+export const runPartialGraph = (
+  graph: graphlib.Graph<INode>,
+  worker: Worker
+) => {
   worker.postMessage({
     nodes: graph.nodes().map((v) => {
-      const node = graph.node(v)
+      const node = graph.node(v);
       return {
         id: node.id,
         x: node.x,
         y: node.y,
         width: node.width,
-        height: node.height
-      }
+        height: node.height | 300,
+      };
     }),
-    edges: graph.edges()
-  })
-}
+    edges: graph.edges(),
+  });
+};
 
-export const loadPartialGraph = (graph: graphlib.Graph<INode>, partial: {
-  nodes: IPartialNode[],
-  edges: dagre.Edge[]
-}) => {
+export const loadPartialGraph = (
+  graph: graphlib.Graph<INode>,
+  partial: {
+    nodes: IPartialNode[];
+    edges: dagre.Edge[];
+  }
+) => {
   for (const pnode of partial.nodes) {
-    const node = graph.node(pnode.id)
-    for(const k in pnode) {
-       // @ts-ignore
-      node[k] = pnode[k]
+    const node = graph.node(pnode.id);
+    for (const k in pnode) {
+      // @ts-ignore
+      node[k] = pnode[k];
     }
   }
 
@@ -38,4 +44,4 @@ export const loadPartialGraph = (graph: graphlib.Graph<INode>, partial: {
   // for (const edge of partial.edges) {
   //   graph.setEdge(edge.v, edge.w)
   // }
-}
+};

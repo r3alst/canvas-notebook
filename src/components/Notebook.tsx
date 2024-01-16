@@ -1,57 +1,133 @@
-import { Layer, Stage } from "react-konva"
-import { Node } from "./Node"
-import { adjustNodeLinks, nodes } from "../mock"
-import { useCallback, useDeferredValue, useEffect, useRef, useState } from "react"
-import { useGraphContext } from "../contexts/GraphContext"
-import dagre from "dagre"
-import Konva from "konva"
-import { useWorker } from "../hooks/use-worker"
-import { INode, IPartialNode } from "../types/INode"
-import { loadPartialGraph, runPartialGraph } from "../utils/graph"
+import { adjustNodeLinks, nodes } from "../mock";
+import {
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from "react";
+import { useGraphContext } from "../contexts/GraphContext";
+import dagre from "dagre";
+import Konva from "konva";
+import { useWorker } from "../hooks/use-worker";
+import { IPartialNode } from "../types/INode";
+import { loadPartialGraph, runPartialGraph } from "../utils/graph";
+import { NODE_PADDING, NODE_WIDTH } from "../constants";
 
 export const Notebook = () => {
-  const { graph } = useGraphContext()
-  const stageRef = useRef<Konva.Stage | null>(null)
-  const konvaNodeRefs = useRef<
-    Record<string, Konva.Layer | null>
-  >({})
-  const [heightUpdated, setHeightUpdated] = useState<Date>(new Date())
-  const [graphReload, setGraphReload] = useState<Date>(new Date())
-  const _heightUpdated = useDeferredValue(heightUpdated)
+  const { graph } = useGraphContext();
+  const canvasId = useId();
+  const stage = useRef<Konva.Stage | null>(null);
+  const layer = useRef<Konva.Layer | null>(null);
+  const [initialized, setInitialized] = useState<Date | null>(null);
 
-  const workerOnMessage = useCallback((e: MessageEvent<{
-    nodes: IPartialNode[],
-    edges: dagre.Edge[]
-  }>) => {
-    loadPartialGraph(graph, e.data)
+  const konvaNodeRefs = useRef<Record<string, Konva.Group | null>>({});
 
-    setGraphReload(new Date())
-  }, [graph])
+  const [heightUpdated, setHeightUpdated] = useState<Date>(new Date());
+  const [graphReload, setGraphReload] = useState<Date>(new Date());
+  const _heightUpdated = useDeferredValue(heightUpdated);
+
+  const workerOnMessage = useCallback(
+    (
+      e: MessageEvent<{
+        nodes: IPartialNode[];
+        edges: dagre.Edge[];
+      }>
+    ) => {
+      loadPartialGraph(graph, e.data);
+
+      // setGraphReload(new Date());
+      for (const v of graph.nodes()) {
+        const node = graph.node(v);
+
+        const isExisting = v in konvaNodeRefs.current;
+        const konvaNode =
+          konvaNodeRefs.current[v] ||
+          new Konva.Group({
+            x: node.x,
+            y: node.y,
+          });
+        konvaNodeRefs.current[v] = konvaNode;
+
+        // Need optimization here
+        layer.current?.destroyChildren();
+        konvaNode.clear();
+
+        // Node wrap
+        const nodeWrap = new Konva.Rect({
+          width: node.width,
+          height: node.height,
+          fill: "#333",
+        });
+
+        const title = new Konva.Text({
+          width: NODE_WIDTH - 20,
+          x: NODE_PADDING / 2,
+          y: 10,
+          fill: "#fff",
+          text: String(node.title),
+          fontSize: 18,
+        });
+
+        const content = new Konva.Text({
+          x: NODE_PADDING / 2,
+          y: 20 + (title.height() || 0),
+          width: NODE_WIDTH - 20,
+          fill: "#fff",
+          text: String(node?.content),
+          fontSize: 18,
+        });
+
+        konvaNode.add(title);
+        konvaNode.add(content);
+        konvaNode.add(nodeWrap);
+
+        if (!isExisting) {
+          stage.current?.add(konvaNode);
+        }
+      }
+    },
+    [graph]
+  );
 
   const { worker } = useWorker<{
-    nodes: IPartialNode[],
-    edges: dagre.Edge[]
-  }>(workerOnMessage)
+    nodes: IPartialNode[];
+    edges: dagre.Edge[];
+  }>(workerOnMessage);
 
   useEffect(() => {
-    if (!stageRef.current) return;
+    // If Notebook reinitialized
+    if (stage.current) {
+      stage.current.destroy();
+    }
+    stage.current = new Konva.Stage({
+      container: canvasId,
+      width: window.innerWidth,
+      height: window.innerHeight,
+    });
+    setInitialized(new Date());
+  }, [canvasId]);
+
+  useEffect(() => {
+    if (!stage.current || !initialized) return;
 
     const scaleBy = 1.1;
-    const stage = stageRef.current
+    const _stage = stage.current;
 
     const listener: Konva.KonvaEventListener<Konva.Stage, WheelEvent> = (e) => {
       // stop default scrolling
       e.evt.preventDefault();
 
-      const oldScale = stage.scaleX();
-      const pointer = stage.getPointerPosition() || {
+      const oldScale = _stage.scaleX();
+      const pointer = _stage.getPointerPosition() || {
         x: 0,
-        y: 0
+        y: 0,
       };
 
       const mousePointTo = {
-        x: (pointer.x - stage.x()) / oldScale,
-        y: (pointer.y - stage.y()) / oldScale,
+        x: (pointer.x - _stage.x()) / oldScale,
+        y: (pointer.y - _stage.y()) / oldScale,
       };
 
       // how to scale? Zoom in? Or zoom out?
@@ -65,68 +141,68 @@ export const Notebook = () => {
 
       const newScale = direction > 0 ? oldScale * scaleBy : oldScale / scaleBy;
 
-      stage.scale({ x: newScale, y: newScale });
+      _stage.scale({ x: newScale, y: newScale });
 
       const newPos = {
         x: pointer.x - mousePointTo.x * newScale,
         y: pointer.y - mousePointTo.y * newScale,
       };
-      stage.position(newPos);
+      _stage.position(newPos);
     };
-    stage.on('wheel', listener);
+    _stage.on("wheel", listener);
 
     return () => {
-      stage && stage.off('wheel', listener)
-    }
-  }, [])
+      _stage && _stage.off("wheel", listener);
+    };
+  }, [initialized]);
 
   useEffect(() => {
     // Cleaning Graph
     for (const edge of graph.edges()) {
-      graph.removeEdge(edge.v, edge.w)
+      graph.removeEdge(edge.v, edge.w);
     }
     for (const nodeId of graph.nodes()) {
-      graph.removeNode(nodeId)
+      graph.removeNode(nodeId);
     }
 
-    graph.setDefaultEdgeLabel({} as any)
-    graph.setDefaultNodeLabel({} as any)
+    graph.setDefaultEdgeLabel({} as any);
+    graph.setDefaultNodeLabel({} as any);
 
     // Building Graph
     for (const node of nodes) {
-      graph.setNode(`${node.id}`, node)
+      graph.setNode(`${node.id}`, node);
       for (const parent of node.parents) {
-        const parentNode = nodes.find((_node) => _node.id === parent.id)
+        const parentNode = nodes.find((_node) => _node.id === parent.id);
         if (!parentNode) continue;
-        graph.setEdge(parentNode.id, node.id)
+        graph.setEdge(parentNode.id, node.id);
       }
     }
 
     // Execute Layout for DAG coords
-    runPartialGraph(graph, worker.current)
+    runPartialGraph(graph, worker.current);
     // dagre.layout(graph)
-  }, [graphReload])
+  }, [graphReload]);
 
-  useEffect(() => {
-    Object.keys(konvaNodeRefs.current).forEach((nodeId) => {
-      if (!konvaNodeRefs.current[nodeId]) return;
+  // useEffect(() => {
+  //   Object.keys(konvaNodeRefs.current).forEach((nodeId) => {
+  //     if (!konvaNodeRefs.current[nodeId]) return;
 
-      const node = graph.node(nodeId)
-      node.height = konvaNodeRefs.current[nodeId]!.height() || 0
-    })
+  //     const node = graph.node(nodeId);
+  //     node.height = konvaNodeRefs.current[nodeId]!.height() || 0;
+  //   });
 
-    // Execute Layout for DAG coords
-    runPartialGraph(graph, worker.current)
-  }, [_heightUpdated])
+  //   // Execute Layout for DAG coords
+  //   runPartialGraph(graph, worker.current);
+  // }, [_heightUpdated]);
 
   const regenerateGraph = useCallback(() => {
-    adjustNodeLinks(nodes)
-    setGraphReload(new Date())
-  }, [setGraphReload])
+    adjustNodeLinks(nodes);
+    setGraphReload(new Date());
+  }, [setGraphReload]);
 
   const runDagre = useCallback(() => {
-    runPartialGraph(graph, worker.current)
-  }, [setGraphReload])
+    runPartialGraph(graph, worker.current);
+  }, [setGraphReload]);
 
   return (
     <div id="notebook-wrap">
@@ -138,7 +214,8 @@ export const Notebook = () => {
           <button onClick={runDagre}>Run Dagre</button>
         </div>
       </div>
-      <Stage
+      <div id={canvasId}></div>
+      {/* <Stage
         width={window.innerWidth}
         height={window.innerHeight}
         draggable={true}
@@ -146,10 +223,14 @@ export const Notebook = () => {
       >
         <Layer x={0} y={0}>
           {nodes.map((node) => (
-            <Node key={node.id} id={`${node.id}`} setHeightUpdated={setHeightUpdated} />
+            <Node
+              key={node.id}
+              id={`${node.id}`}
+              setHeightUpdated={setHeightUpdated}
+            />
           ))}
         </Layer>
-      </Stage>
+      </Stage> */}
     </div>
-  )
-}
+  );
+};
