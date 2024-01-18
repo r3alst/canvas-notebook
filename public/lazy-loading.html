@@ -1,0 +1,80 @@
+<html>
+  <head>
+    <title>Lazy Loading</title>
+  </head>
+  <body>
+    <canvas
+      id="viewportCanvas"
+      width="800"
+      height="800"
+      style="border: 1px solid #000000"
+    ></canvas>
+  </body>
+  <script>
+    const largeCanvasWidth = 2000;
+    const largeCanvasHeight = 2000;
+    const viewportCanvas = document.getElementById("viewportCanvas");
+    const ctx = viewportCanvas.getContext("2d");
+
+    let viewportX = 0;
+    let viewportY = 0;
+    let isDragging = false;
+    let lastMouseX, lastMouseY;
+
+    // Simulated large canvas content
+    const largeCanvasContent = (x, y, width, height) => {
+      // Example content: just a filled rectangle
+      // In our Notebook this area we might clip big canvas and fill in Viewport
+      ctx.fillStyle = "#3f51b5";
+      ctx.fillRect(x, y, width, height);
+    };
+
+    // Function to render the visible part of the large canvas
+    const renderVisiblePart = () => {
+      ctx.clearRect(0, 0, viewportCanvas.width, viewportCanvas.height);
+      const visibleWidth = Math.min(
+        viewportCanvas.width,
+        largeCanvasWidth - viewportX
+      );
+      const visibleHeight = Math.min(
+        viewportCanvas.height,
+        largeCanvasHeight - viewportY
+      );
+      largeCanvasContent(-viewportX, -viewportY, visibleWidth, visibleHeight);
+    };
+
+    // Mouse down event
+    viewportCanvas.addEventListener("mousedown", (e) => {
+      isDragging = true;
+      lastMouseX = e.clientX;
+      lastMouseY = e.clientY;
+    });
+
+    // Mouse up event
+    window.addEventListener("mouseup", () => {
+      isDragging = false;
+    });
+
+    // Mouse move event
+    viewportCanvas.addEventListener("mousemove", (e) => {
+      if (isDragging) {
+        const deltaX = e.clientX - lastMouseX;
+        const deltaY = e.clientY - lastMouseY;
+        viewportX = Math.min(
+          largeCanvasWidth - viewportCanvas.width,
+          Math.max(0, viewportX - deltaX)
+        );
+        viewportY = Math.min(
+          largeCanvasHeight - viewportCanvas.height,
+          Math.max(0, viewportY - deltaY)
+        );
+        lastMouseX = e.clientX;
+        lastMouseY = e.clientY;
+        renderVisiblePart();
+      }
+    });
+
+    // Initial render
+    renderVisiblePart();
+  </script>
+</html>
